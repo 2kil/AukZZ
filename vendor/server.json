@@ -1,0 +1,31 @@
+{
+  "_comment": "AuK resident server for the live-streaming TTS service. Eager load (lazy_load=false) so every request is warm.",
+  "host": "127.0.0.1",
+  "port": 8123,
+  "backend": "cuda",
+  "device": 0,
+  "threads": 4,
+  "lazy_load": false,
+  "max_loaded_models": 2,
+  "ui": false,
+  "ui_management": false,
+  "voice_dir": "D:/GitSum/AukZZ/models/voice-library",
+  "models": [
+    {
+      "id": "auk-flash",
+      "family": "auk",
+      "path": "D:/GitSum/AukZZ/models/AuK-GGUF",
+      "task": "tts",
+      "mode": "offline",
+      "session_options": {
+        "auk.variant": "flash",
+        "auk.model_gguf": "auk-flash-q8_0.gguf",
+        "auk.qwen_gguf": "qwen2.5-omni-3b-q8_0.gguf",
+        "auk.vae_gguf": "auk-vae-f32.gguf"
+      },
+      "default_request_options": {
+        "seed": 42
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+# HTTP service dependencies (installed into .venv)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+# used by the audio helpers: long-text chunk joining, WAV decode, echo detection
+# (lazily imported inside app/audio.py, so pip will not flag it as missing)
+numpy>=1.24
+
+# --- GGUF backend (default, no Python ML deps) ------------------------------
+# Uses the prebuilt audio.cpp CLI as a subprocess:
+#   vendor/audio.cpp-cu124/audiocpp_cli.exe   (audio.cpp v0.9.5, windows-x64-cuda12.4)
+#   models/AuK-GGUF/                          (GGUF weights + config/ + tokenizer/)
+# Extra runtime pieces that are NOT bundled in the release zip:
+#   * CUDA 12.x runtime — either the official `cudart` archive extracted next to the
+#     binaries (audio-v0.9.5-cudart-windows-x64-cuda12.4.zip: cudart64_12.dll,
+#     cublas64_12.dll, cublasLt64_12.dll, cufft64_11.dll) or a CUDA 12 bin dir on PATH.
+#   * libsoxr.dll + libgomp-1.dll + libwinpthread-1.dll next to audiocpp_cli.exe
+#     (AuK needs HQ soxr; libsoxr -> libgomp-1 -> libwinpthread-1, all three required.
+#     resampling for reference audio). MUST be the UCRT build: a msvcrt build
+#     (e.g. TDM-GCC) intermittently crashes with 0xC0000005 during teardown after
+#     the WAV is written. Fetch the MSYS2 packages and extract ucrt64/bin/*:
+#       https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libsoxr-0.1.3-6-any.pkg.tar.zst
+#       https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libgomp-16.2.0-7-any.pkg.tar.zst
+#       https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libwinpthread-git-12.0.0.r747.g1a99f8514-1-any.pkg.tar.zst
+#     /health -> preflight.soxr.loadable must be true; a missing link shows up as
+#     'AuK audio conditioning requires Soxr HQ resampling' on every voice request.
+#     (.pkg.tar.zst unpacks with `zstandard` + tarfile; provenance copies of the two
+#      DLLs are kept in vendor/soxr-ucrt/)
+
+# --- Python AuK stack (optional, engine=auk only) ---------------------------
+# Install the full AuK stack instead of pinning it here; versions must match
+# docs/AuK/pyproject.toml (torch 2.7.x, transformers 4.52-4.57):
+#   uv pip install --python .venv/Scripts/python.exe -e "docs/AuK"
+# plus ~18.8 GB of checkpoints in docs/AuK/ckpts (see docs/AuK/README.md).
+
+# --- Resident server mode (default; used for live streaming) ----------------
+# These two processes run together:
+#   .venv\Scripts\python.exe -m app.main --port 8080 --webui      # speech API + WebUI
+#   vendor/audio.cpp-cu124/audiocpp_server.exe --config vendor/server.json   # started automatically
+# The service reuses an already-running server (model id "auk-flash") and otherwise
+# spawns it, waits for /v1/models, warms up both routes, and stops it on exit.
+# Per-request latency: ~0.3 s (3 s of audio) vs ~7 s for the CLI backend.
+# Flags: --tts-backend {server,cli}  --server-url URL  --no-server-autostart
+# Voice library: models/voice-library/*.wav (name = role name), auto-synced from /roles.
+# Switch back to the debug CLI path with: --tts-backend cli

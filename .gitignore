@@ -1,0 +1,68 @@
+# ============================================================================
+# AuK 语音服务 — 版本控制忽略规则
+# 原则：源码、配置、内置角色音频入库；虚拟环境、缓存、权重、二进制运行时不入库。
+# ============================================================================
+
+# --- Python ------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- 缓存与工具产物（可随时删除，见 README「目录结构」） ----------------------
+.cache/
+.playwright-cli/
+*.log
+*.tmp
+
+# --- 运行产物（自定义角色、输出音频、临时文件） ------------------------------
+# 备份自定义角色只需保留 data/roles/index.json + data/roles/audio/
+data/
+
+# 根目录手工调试产物
+/out.wav
+/h.txt
+/*.wav
+/*.png
+
+# --- 模型权重（体积大，按需下载；见 README「下载模型与运行时」） -------------
+# 用 models/* 而不是 models/，否则 git 不会进入该目录，.gitkeep 的例外也不会生效
+models/*
+!models/.gitkeep
+
+# --- 第三方推理运行时（按平台下载，约 2 GB） ---------------------------------
+vendor/audio.cpp-*/
+vendor/*.zip
+vendor/*.tar.gz
+vendor/server-examples/
+
+# vendor/soxr-ucrt/ 刻意入库：三个 DLL 共 740 KB，是 Windows 上修复
+# "requires Soxr HQ resampling" 的必需文件，重新获取很麻烦。
+# vendor/server.json 也入库（注意换机器/换系统时须改其中的绝对路径）。
+
+# --- 上游资料中的大文件 ------------------------------------------------------
+# docs/AuK/src 是 PyTorch 参考实现（--engine auk 用），保留；
+# 但 demo 音频与权重不下库。
+docs/AuK/assets/
+docs/AuK/ckpts/
+docs/AuK/**/*.safetensors
+docs/AuK/**/*.gguf
+
+# --- 说明 --------------------------------------------------------------------
+# role/ 刻意入库（15 个内置角色参考音频，共 12 MB），它是产品的一部分，
+# 缺失会导致 /roles 少一半音色。
+# .workbuddy/ 只保留 memory/ 里的项目笔记（决策记录），其余会话缓存忽略。
+.workbuddy/*
+!.workbuddy/memory/
+
+# --- IDE / 系统 --------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AuK 语音服务控制台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6fed'/%3E%3Cpath d='M8 16h3l3-7 4 14 3-7h3' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --border:#e3e6ea; --text:#1b1f24; --muted:#6b7280;
+    --accent:#2f6fed; --accent-weak:#eaf1ff; --ok:#0f9d58; --warn:#b26a00; --err:#c0392b;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 22px;
+         display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:9}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+  .badge{font:600 12px/1 var(--mono);padding:5px 9px;border-radius:999px;background:var(--accent-weak);
+         color:var(--accent);border:1px solid #d3e1ff}
+  .badge.ok{background:#e8f7ee;color:var(--ok);border-color:#cceedd}
+  .badge.warn{background:#fdf3e3;color:var(--warn);border-color:#f5e2c0}
+  .badge.err{background:#fdeceb;color:var(--err);border-color:#f6d3d1}
+  .spacer{flex:1}
+  main{max-width:1180px;margin:0 auto;padding:22px;display:grid;gap:18px;
+       grid-template-columns:repeat(12,1fr)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;
+        box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .card h2{font-size:13px;margin:0 0 12px;font-weight:650;color:var(--muted);
+           text-transform:uppercase;letter-spacing:.6px}
+  .col-5{grid-column:span 5}.col-7{grid-column:span 7}.col-6{grid-column:span 6}
+  .col-12{grid-column:span 12}
+  /* 首屏优先展示：状态 + 合成，其次角色库与创建表单 */
+  #healthCard{order:1}#synthCard{order:2}#rolesCard{order:3}#createCard{order:4}#editCard{order:5}#logCard{order:6}
+  .table-wrap{max-height:300px;overflow-y:auto;border-radius:8px}
+  .table-wrap thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+  @media(max-width:900px){.col-5,.col-7,.col-6{grid-column:span 12}}
+  dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+  dl.kv dt{color:var(--muted)}
+  dl.kv dd{margin:0;font-family:var(--mono);font-size:12.5px;word-break:break-all}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+  input[type=text],input[type=number],textarea,select{
+    width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+    background:#fff;color:var(--text);font:13px/1.4 inherit;outline:none}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,111,237,.12)}
+  textarea{min-height:84px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  button{cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--text);
+         padding:8px 14px;border-radius:8px;font:600 13px/1 inherit}
+  button:hover{border-color:#c9cfd8;background:#fafbfc}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#2560d4}
+  button.primary:disabled{opacity:.55;cursor:progress}
+  button.danger{color:var(--err);border-color:#f0d0cd}
+  button.mini{padding:4px 9px;font-size:12px;font-weight:500}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #f0f2f5}
+  th{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  tbody tr:hover{background:#fafbfc}
+  tbody tr.sel{background:var(--accent-weak)}
+  td.mono{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  audio{width:100%;margin-top:10px}
+  pre#log{margin:0;background:#0f1420;color:#d7e0ea;border-radius:10px;padding:12px;height:190px;
+          overflow:auto;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-all}
+  .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .tag{font:500 11px/1 var(--mono);padding:3px 7px;border-radius:6px;background:#f1f3f6;color:var(--muted)}
+  .warnline{margin-top:10px;padding:8px 10px;border-radius:8px;background:#fdf3e3;color:var(--warn);
+            border:1px solid #f5e2c0;font-size:12.5px;display:none}
+  .noteline{margin-top:8px;padding:7px 10px;border-radius:8px;background:#f2f5f9;color:var(--muted);
+            border:1px solid #e3e8ef;font-size:12px;display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>AuK 语音服务控制台</h1>
+  <span id="engineBadge" class="badge">加载中</span>
+  <span id="variantBadge" class="badge">—</span>
+  <span class="spacer"></span>
+  <button class="mini" id="refreshBtn">刷新状态</button>
+  <a href="/docs" target="_blank" style="font-size:12.5px;color:var(--accent);text-decoration:none">API 文档</a>
+</header>
+
+<main>
+  <!-- 状态 -->
+  <section class="card col-5" id="healthCard">
+    <h2>服务状态</h2>
+    <dl class="kv" id="healthKv"><dt>—</dt><dd>读取中</dd></dl>
+    <div class="warnline" id="degradedLine"></div>
+  </section>
+
+  <!-- 角色列表 -->
+  <section class="card col-7" id="rolesCard">
+    <h2>角色音色</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>名称</th><th>来源</th><th>时长</th><th>ID</th><th></th></tr></thead>
+        <tbody id="roleRows"><tr><td colspan="5" class="mono">读取中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="flex" style="margin-top:10px">
+      <audio id="refPlayer" controls style="max-width:340px;display:none"></audio>
+      <span class="hint" id="roleHint">点击「试听」播放参考音频；点击行选中为合成音色。</span>
+    </div>
+  </section>
+
+  <!-- 合成 -->
+  <section class="card col-7" id="synthCard">
+    <h2>语音合成</h2>
+    <label>文本</label>
+    <textarea id="text" placeholder="输入要合成的文本…">你好，这是通过 WebUI 控制台合成的语音测试。</textarea>
+    <div class="row">
+      <div>
+        <label>角色（零样本克隆）</label>
+        <select id="roleSelect"><option value="">— 不使用参考音频 —</option></select>
+      </div>
+      <div>
+        <label>音色描述（Instruct TTS，无角色时生效）</label>
+        <input type="text" id="voiceDesc" placeholder="例如：一位二十多岁的女生，语气温柔" />
+      </div>
+    </div>
+    <div class="row3">
+      <div><label>目标时长（秒，留空自动估算）</label><input type="number" id="genSeconds" step="0.1" min="0.3" max="20" placeholder="自动" /></div>
+      <div><label>语速系数</label><input type="number" id="speed" step="0.05" min="0.3" max="3" value="1" /></div>
+      <div><label>随机种子（空=随机）</label><input type="number" id="seed" step="1" placeholder="随机" /></div>
+    </div>
+    <div class="flex" style="margin-top:14px">
+      <button class="primary" id="synthBtn">开始合成</button>
+      <span class="hint" id="synthHint">首次请求需加载模型，约 5–8 秒；长文本会自动分段（每段 ≤15 秒）再拼接，保证语速自然</span>
+    </div>
+    <div id="resultWrap" style="display:none">
+      <audio id="resultPlayer" controls></audio>
+      <div class="flex" style="margin-top:8px">
+        <a id="downloadLink" class="tag" download="auk.wav" href="#">下载 WAV</a>
+        <span class="tag" id="resEngine">—</span>
+        <span class="tag" id="resMode">—</span>
+        <span class="tag" id="resElapsed">—</span>
+        <span class="tag" id="resDur">—</span>
+      </div>
+      <div class="warnline" id="resWarn"></div>
+    </div>
+  </section>
+
+  <!-- 编辑 -->
+  <section class="card col-12" id="editCard">
+    <h2>音频编辑 / 增强 / 分离（指令驱动）</h2>
+    <div class="row">
+      <div>
+        <label>指令模板（选中后自动填入下方）</label>
+        <select id="editPreset">
+          <option value="">— 自定义指令 —</option>
+          <optgroup label="内容编辑">
+            <option value="Replace &quot;but accepting what we cannot have&quot; with &quot;and living well with dreams unmet&quot;.">替换语句内容</option>
+          </optgroup>
+          <optgroup label="声学编辑">
+            <option value="Raise the pitch by 2 semitones.">音高 +2 半音</option>
+            <option value="Lower the pitch by 2 semitones.">音高 −2 半音</option>
+            <option value="Speed up the speech by 1.5x.">语速 ×1.5</option>
+            <option value="Slow down the speech by 0.75x.">语速 ×0.75</option>
+            <option value="Increase the volume by 10 dB.">音量 +10 dB</option>
+            <option value="Decrease the volume by 10 dB.">音量 −10 dB</option>
+          </optgroup>
+          <optgroup label="副语言编辑">
+            <option value="Change the emotion to happy.">情绪 → 开心</option>
+            <option value="Change the emotion to sad.">情绪 → 悲伤</option>
+            <option value="Change the timbre to a deep, calm male voice.">音色 → 低沉男声</option>
+            <option value="Convert the speech to standard Mandarin, removing the regional accent.">去除口音</option>
+            <option value="Remove the breaths and other nonverbal sounds.">移除非语声</option>
+            <option value="Speak the source in a quiet whisper.">转耳语</option>
+          </optgroup>
+          <optgroup label="增强与分离">
+            <option value="Remove the background noise and reverb, keep the speech clean and natural.">语音增强（降噪去混响）</option>
+            <option value="Keep only the first speaker and remove the other speakers.">人声分离（保留第一人）</option>
+            <option value="Extract the singing voice and remove the background music.">音乐分离（提取人声）</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label>源音频 *（WAV，建议 ≤30 秒）</label>
+        <input type="file" id="editFile" accept=".wav,audio/wav" style="font-size:12px" />
+        <div class="row" style="margin-top:8px">
+          <div><label>目标时长（秒，留空=与源等长）</label><input type="number" id="editSeconds" step="0.1" min="0.3" max="30" placeholder="与源等长" /></div>
+          <div><label>随机种子</label><input type="number" id="editSeed" step="1" placeholder="随机" /></div>
+        </div>
+      </div>
+    </div>
+    <label>编辑指令（自然语言，英文模板效果最佳）</label>
+    <textarea id="editInstruction" placeholder="例如：Raise the pitch by 2 semitones." style="min-height:64px"></textarea>
+    <div class="flex" style="margin-top:12px">
+      <button class="primary" id="editBtn">执行编辑</button>
+      <span class="hint" id="editHint">覆盖内容/歌词编辑、音高/语速/音量、情绪/音色/口音/耳语、降噪、人声与音乐分离、目标说话人提取</span>
+    </div>
+    <div id="editResultWrap" style="display:none">
+      <audio id="editPlayer" controls></audio>
+      <div class="flex" style="margin-top:8px">
+        <a id="editDownload" class="tag" download="auk_edit.wav" href="#">下载 WAV</a>
+        <span class="tag" id="editEngine">—</span>
+        <span class="tag" id="editDur">—</span>
+        <span class="tag" id="editSrcDur">—</span>
+        <span class="tag" id="editElapsed">—</span>
+      </div>
+      <div class="warnline" id="editWarn"></div>
+    </div>
+  </section>
+
+  <!-- 创建角色 -->
+  <section class="card col-5" id="createCard">
+    <h2>创建角色</h2>
+    <label>角色名称 *</label>
+    <input type="text" id="newName" placeholder="例如：客服-小雅" />
+    <label>参考音频 *（WAV，建议 3–15 秒）</label>
+    <input type="file" id="newFile" accept=".wav,audio/wav" style="font-size:12px" />
+    <div class="row">
+      <div><label>性别</label><input type="text" id="newGender" placeholder="female / male" /></div>
+      <div><label>语言</label><input type="text" id="newLang" value="zh" /></div>
+    </div>
+    <label>标签（逗号分隔）</label>
+    <input type="text" id="newTags" placeholder="clone,客服" />
+    <label>描述</label>
+    <input type="text" id="newDesc" placeholder="可选" />
+    <div class="flex" style="margin-top:14px">
+      <button class="primary" id="createBtn">创建角色</button>
+      <span class="hint">参考音频默认截取前 10 秒</span>
+    </div>
+  </section>
+
+  <!-- 日志 -->
+  <section class="card col-12" id="logCard">
+    <h2>请求日志</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+let selectedRoleId = '';
+let lastObjectUrl = '';
+
+function log(msg, kind) {
+  const ts = new Date().toLocaleTimeString('zh-CN', {hour12: false});
+  const prefix = kind === 'err' ? '[ERR]' : kind === 'ok' ? '[ OK]' : '[ ..]';
+  logEl.textContent += `${ts} ${prefix} ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function jsonFetch(url, opts) {
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let body;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) {
+    const detail = body && body.detail ? body.detail : text;
+    throw new Error(`${res.status} ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`);
+  }
+  return body;
+}
+
+function badge(el, text, cls) {
+  el.textContent = text;
+  el.className = 'badge' + (cls ? ' ' + cls : '');
+}
+
+async function loadHealth() {
+  try {
+    const h = await jsonFetch('/health');
+    const e = h.engine || {};
+    badge($('engineBadge'), 'engine: ' + (e.active || '?'), e.degraded ? 'warn' : 'ok');
+    badge($('variantBadge'), [e.variant, e.backend].filter(Boolean).join(' / ') || (e.device || '—'));
+
+    const kv = $('healthKv');
+    kv.innerHTML = '';
+    const rows = [
+      ['引擎', e.active + (e.degraded ? '（降级）' : '')],
+      ['模型已加载', e.model_loaded ? '是' : '否（CLI 每次调用加载）'],
+      ['变体 / 后端', [e.variant, e.backend].filter(Boolean).join(' / ') || '—'],
+      ['GGUF 就绪', h.gguf ? (h.gguf.ready ? '是' : '否') : '—'],
+      ['模型目录', h.gguf ? h.gguf.model_dir : '—'],
+      ['CUDA', h.preflight && h.preflight.torch ? (h.preflight.torch.cuda ? (h.preflight.torch.device_name || 'yes') : '不可用') : '—'],
+      ['显存', h.preflight && h.preflight.torch && h.preflight.torch.vram_total_gib ? h.preflight.torch.vram_total_gib + ' GiB' : '—'],
+      ['角色数', `${h.roles.builtin} 内置 / ${h.roles.custom} 自建`],
+    ];
+    for (const [k, v] of rows) {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v;
+      kv.append(dt, dd);
+    }
+    const warn = $('degradedLine');
+    if (e.degraded && e.reason) { warn.style.display = 'block'; warn.textContent = '降级原因：' + e.reason; }
+    else warn.style.display = 'none';
+    log(`health: engine=${e.active} roles=${h.roles.builtin}+${h.roles.custom}`, 'ok');
+  } catch (err) {
+    badge($('engineBadge'), '不可达', 'err');
+    log('health 失败: ' + err.message, 'err');
+  }
+}
+
+async function loadRoles() {
+  try {
+    const data = await jsonFetch('/roles');
+    const tbody = $('roleRows');
+    const select = $('roleSelect');
+    tbody.innerHTML = '';
+    select.innerHTML = '<option value="">— 不使用参考音频 —</option>';
+    for (const r of data.roles) {
+      const tr = document.createElement('tr');
+      tr.dataset.id = r.id;
+      tr.innerHTML = `<td>${r.name}</td>
+        <td><span class="tag">${r.source}</span></td>
+        <td class="mono">${r.duration.toFixed(2)}s</td>
+        <td class="mono">${r.id}</td>
+        <td></td>`;
+      const cell = tr.lastElementChild;
+
+      const play = document.createElement('button');
+      play.className = 'mini'; play.textContent = '试听';
+      play.onclick = (ev) => {
+        ev.stopPropagation();
+        const p = $('refPlayer');
+        p.style.display = 'block';
+        p.src = `/roles/${encodeURIComponent(r.id)}/audio?t=${Date.now()}`;
+        p.play().catch(() => {});
+        log(`试听 ${r.name}`);
+      };
+      cell.appendChild(play);
+
+      if (r.source === 'custom') {
+        const del = document.createElement('button');
+        del.className = 'mini danger'; del.textContent = '删除'; del.style.marginLeft = '6px';
+        del.onclick = async (ev) => {
+          ev.stopPropagation();
+          if (!confirm(`删除角色「${r.name}」？`)) return;
+          try {
+            await jsonFetch(`/roles/${encodeURIComponent(r.id)}`, {method: 'DELETE'});
+            log(`已删除 ${r.name}`, 'ok');
+            loadRoles();
+          } catch (err) { log('删除失败: ' + err.message, 'err'); }
+        };
+        cell.appendChild(del);
+      }
+
+      tr.onclick = () => {
+        selectedRoleId = r.id;
+        document.querySelectorAll('#roleRows tr').forEach(x => x.classList.remove('sel'));
+        tr.classList.add('sel');
+        select.value = r.id;
+        $('roleHint').textContent = `已选中：${r.name}`;
+        log(`选中角色 ${r.name} (${r.id})`);
+      };
+      tbody.appendChild(tr);
+
+      const opt = document.createElement('option');
+      opt.value = r.id; opt.textContent = `${r.name}（${r.source}）`;
+      select.appendChild(opt);
+    }
+    if (!data.roles.length) tbody.innerHTML = '<tr><td colspan="5" class="mono">暂无角色</td></tr>';
+    log(`roles: ${data.total} 个`, 'ok');
+  } catch (err) { log('roles 失败: ' + err.message, 'err'); }
+}
+
+async function synthesize() {
+  const btn = $('synthBtn');
+  const text = $('text').value.trim();
+  if (!text) { log('文本为空', 'err'); return; }
+  const payload = {text};
+  const roleId = $('roleSelect').value;
+  if (roleId) payload.role_id = roleId;
+  else if ($('voiceDesc').value.trim()) payload.voice_description = $('voiceDesc').value.trim();
+  if ($('genSeconds').value) payload.gen_seconds = parseFloat($('genSeconds').value);
+  if ($('speed').value) payload.speed = parseFloat($('speed').value);
+  if ($('seed').value) payload.seed = parseInt($('seed').value, 10);
+
+  btn.disabled = true; btn.textContent = '合成中…';
+  $('synthHint').textContent = '正在调用 AuK 推理…';
+  const t0 = performance.now();
+  log(`POST /speech role=${roleId || '(instruct)'} len=${text.length} chars`);
+  try {
+    const res = await fetch('/speech', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      let msg = t; try { msg = JSON.parse(t).detail || t; } catch {}
+      throw new Error(`${res.status} ${msg}`);
+    }
+    const blob = await res.blob();
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(blob);
+    $('resultWrap').style.display = 'block';
+    $('resultPlayer').src = lastObjectUrl;
+    $('downloadLink').href = lastObjectUrl;
+
+    $('resEngine').textContent = 'engine: ' + (res.headers.get('X-Engine') || '?');
+    $('resMode').textContent = 'mode: ' + (res.headers.get('X-Mode') || '?');
+    $('resElapsed').textContent = 'elapsed: ' + (res.headers.get('X-Elapsed-MS') || '?') + ' ms';
+    $('resDur').textContent = 'audio: ' + (res.headers.get('X-Audio-Duration') || '?') + ' s';
+
+    const warn = res.headers.get('X-Warning');
+    const warnEl = $('resWarn');
+    if (warn) { warnEl.style.display = 'block'; warnEl.textContent = decodeURIComponent(warn); }
+    else warnEl.style.display = 'none';
+
+    const notes = res.headers.get('X-Notes');
+    if (notes) log('提示：' + decodeURIComponent(notes));
+
+    const wall = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`合成成功 ${(blob.size / 1024).toFixed(0)} KB，端到端 ${wall}s`, 'ok');
+    $('synthHint').textContent = `完成，端到端 ${wall}s`;
+  } catch (err) {
+    log('合成失败: ' + err.message, 'err');
+    $('synthHint').textContent = '失败：' + err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '开始合成';
+  }
+}
+
+async function createRole() {
+  const name = $('newName').value.trim();
+  const file = $('newFile').files[0];
+  if (!name) { log('请填写角色名称', 'err'); return; }
+  if (!file) { log('请选择参考音频（WAV）', 'err'); return; }
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('ref_audio', file);
+  fd.append('gender', $('newGender').value.trim());
+  fd.append('language', $('newLang').value.trim() || 'zh');
+  fd.append('tags', $('newTags').value.trim());
+  fd.append('description', $('newDesc').value.trim());
+
+  const btn = $('createBtn');
+  btn.disabled = true; btn.textContent = '创建中…';
+  log(`POST /roles name=${name} file=${file.name} (${(file.size/1024).toFixed(0)} KB)`);
+  try {
+    const role = await jsonFetch('/roles', {method: 'POST', body: fd});
+    log(`角色已创建 ${role.name} (${role.id}) ${role.duration}s`, 'ok');
+    if (role.warnings && role.warnings.length) log('提示: ' + role.warnings.join('；'));
+    $('newName').value = ''; $('newFile').value = '';
+    await loadRoles();
+    $('roleSelect').value = role.id;
+    selectedRoleId = role.id;
+    await loadHealth();
+  } catch (err) {
+    log('创建失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '创建角色';
+  }
+}
+
+$('editPreset').onchange = (e) => {
+  if (e.target.value) $('editInstruction').value = e.target.value;
+};
+
+async function runEdit() {
+  const instruction = $('editInstruction').value.trim();
+  const file = $('editFile').files[0];
+  if (!instruction) { log('请填写编辑指令', 'err'); return; }
+  if (!file) { log('请选择源音频（WAV）', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('instruction', instruction);
+  fd.append('audio', file);
+  if ($('editSeconds').value) fd.append('gen_seconds', $('editSeconds').value);
+  if ($('editSeed').value) fd.append('seed', $('editSeed').value);
+
+  const btn = $('editBtn');
+  btn.disabled = true; btn.textContent = '处理中…';
+  const t0 = performance.now();
+  log(`POST /edit file=${file.name} (${(file.size / 1024).toFixed(0)} KB) instruction="${instruction.slice(0, 40)}"`);
+  try {
+    const res = await fetch('/edit', {method: 'POST', body: fd});
+    if (!res.ok) {
+      const t = await res.text();
+      let msg = t; try { msg = JSON.parse(t).detail || t; } catch {}
+      throw new Error(`${res.status} ${msg}`);
+    }
+    const blob = await res.blob();
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(blob);
+    $('editResultWrap').style.display = 'block';
+    $('editPlayer').src = lastObjectUrl;
+    $('editDownload').href = lastObjectUrl;
+
+    $('editEngine').textContent = 'engine: ' + (res.headers.get('X-Engine') || '?');
+    $('editDur').textContent = '输出: ' + (res.headers.get('X-Audio-Duration') || '?') + ' s';
+    $('editSrcDur').textContent = '源: ' + (res.headers.get('X-Source-Duration') || '?') + ' s';
+    $('editElapsed').textContent = 'elapsed: ' + (res.headers.get('X-Elapsed-MS') || '?') + ' ms';
+
+    const warn = res.headers.get('X-Warning');
+    const w = $('editWarn');
+    if (warn) { w.style.display = 'block'; w.textContent = decodeURIComponent(warn); }
+    else w.style.display = 'none';
+
+    const note = res.headers.get('X-Notes');
+    if (note) log('提示：' + decodeURIComponent(note));
+
+    const wall = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`编辑完成 ${(blob.size / 1024).toFixed(0)} KB，端到端 ${wall}s`, 'ok');
+    $('editHint').textContent = `完成，端到端 ${wall}s`;
+  } catch (err) {
+    log('编辑失败: ' + err.message, 'err');
+    $('editHint').textContent = '失败：' + err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '执行编辑';
+  }
+}
+
+$('editBtn').onclick = runEdit;
+
+$('refreshBtn').onclick = () => { loadHealth(); loadRoles(); };
+$('synthBtn').onclick = synthesize;
+$('createBtn').onclick = createRole;
+$('roleSelect').onchange = (e) => {
+  selectedRoleId = e.target.value;
+  document.querySelectorAll('#roleRows tr').forEach(x => x.classList.toggle('sel', x.dataset.id === selectedRoleId));
+};
+
+loadHealth();
+loadRoles();
+setInterval(loadHealth, 30000);
+</script>
+</body>
+</html>
